@@ -35,26 +35,24 @@ def beam(phi, theta):
 
 	radiators = np.exp(1j * lag * kd)
 
-	return np.sum(radiators)
+	return np.sum(radiators, 0)
 
 a = np.linspace(-180, +180, 360) / 57.2
 b = np.linspace(-180, +180, 360) / 57.2
+u, v = np.meshgrid(a, b)
+at = np.dstack([u.flatten(), v.flatten()])[0]
 
-pts = []
+m = beam(*at.T)
 
-for theta in a:
-	for phi in b:
-		m = beam(phi, theta)
+def save_obj(phi, theta, m):
+	vec = np.array([
+		np.sin(theta)*np.cos(phi),
+		np.sin(theta)*np.sin(phi),
+		np.cos(theta)
+	]) * np.abs(m)
 
-		vec = np.array([
-			np.sin(theta)*np.cos(phi),
-			np.sin(theta)*np.sin(phi),
-			np.cos(theta)
-		]) * np.abs(m)
+	with open("result.obj", "w") as f:
+		for x, y, z in vec.T:
+			f.write(f"v {x} {y} {z}\n")
 
-		pts.append(vec)
-
-pts = np.array(pts)
-
-for x, y, z in pts:
-	print(f"v {x} {y} {z}")
+save_obj(*at.T, m)
