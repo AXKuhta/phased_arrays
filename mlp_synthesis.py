@@ -23,6 +23,11 @@ class PlanarArray(torch.nn.Module):
 
 	pts = np.dstack([m, n, z])[0]
 
+	# Array weights (ones or taper function)
+	#taper = np.hamming(10)
+	#w = np.outer(taper, taper).flatten()
+	w = np.ones(10*10)
+
 	#
 	# phi           azimuth
 	# theta         inclination (as opposed to elevation)
@@ -47,14 +52,15 @@ class PlanarArray(torch.nn.Module):
 		# Lag distance in a direction (virtual, to a far field point)
 		lag = pts @ vec
 
-		# [optional] tapering
-		w = np.hamming(10)
-		taper = np.outer(w,w).flatten()[:, None]
-		taper = 1
-
-		radiators = taper * np.exp(1j * lag * kd)
+		radiators = self.w[:, None] * np.exp(1j * lag * kd)
 
 		return np.sum(radiators, 0)
+
+	def loss(self, af, mask_upper, mask_lower):
+		u_loss = np.linalg.norm(np.maximum(0, af - mask_upper))
+		l_loss = np.linalg.norm(np.minimum(0, af - mask_lower))
+
+		return u_loss + l_loss
 
 model = PlanarArray()
 
@@ -62,6 +68,10 @@ a = np.linspace(-180, +180, 360)
 b = np.linspace(0, +90, 180)
 u, v = np.meshgrid(a/57.2, b/57.2)
 grid = np.dstack([u.flatten(), v.flatten()])[0]
+
+mask_mainlobe = ((u>=-10/57.2)*(u<10/57.2)*(v>=30/57.2)*(v<50/57.2)).flatten()
+mask_upper = 90*mask_mainlobe + 10
+mask_lower = 100*mask_mainlobe
 
 af = model.array_factor(*grid.T)
 
