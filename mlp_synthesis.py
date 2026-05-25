@@ -47,7 +47,12 @@ class PlanarArray(torch.nn.Module):
 		# Lag distance in a direction (virtual, to a far field point)
 		lag = pts @ vec
 
-		radiators = np.exp(1j * lag * kd)
+		# [optional] tapering
+		w = np.hamming(10)
+		taper = np.outer(w,w).flatten()[:, None]
+		taper = 1
+
+		radiators = taper * np.exp(1j * lag * kd)
 
 		return np.sum(radiators, 0)
 
@@ -62,7 +67,7 @@ af = model.array_factor(*grid.T)
 
 def picture_raw(phi, theta, af):
 	plt.pcolormesh(a, b, np.abs(af).reshape(180, 360))
-	plt.contour(a, b, np.abs(af).reshape(180, 360)>50, levels=[0.5], colors='red', linewidths=2)
+	plt.contour(a, b, np.abs(af).reshape(180, 360)>0.5*np.max(af, 0), levels=[0.5], colors='red', linewidths=2)
 	plt.ylabel("Inclination")
 	plt.xlabel("Azimuth")
 	plt.show()
