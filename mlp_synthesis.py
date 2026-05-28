@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
+import scipy
+
 #
 # Reproduction attempt for a questionable paper
 # DOI: 10.1049/mia2.12290
@@ -35,6 +37,7 @@ class PlanarArray(torch.nn.Module):
 	# Tapering (optional)
 	taper = torch.tensor(np.hamming(10))
 	taper = torch.outer(taper, taper).flatten()
+	#taper = 1
 
 	# Array weights
 	# Should be all 1s for beam up
@@ -68,8 +71,17 @@ class PlanarArray(torch.nn.Module):
 
 	def loss(self, af, mask_upper, mask_lower):
 		af = torch.abs(af)
+		#u_loss = af - mask_upper
+		#u_loss = torch.dot(u_loss, u_loss)/90/360
+		#l_loss = 0
 		u_loss = torch.linalg.norm(torch.maximum(torch.zeros_like(af), af - mask_upper))
 		l_loss = torch.linalg.norm(torch.minimum(torch.zeros_like(af), af - mask_lower))
+
+		plt.clf()
+		#plt.imshow(torch.maximum(torch.zeros_like(af), af - mask_upper).reshape(90, 360).detach())
+		#plt.pause(.01)
+		plt.imshow(torch.minimum(torch.zeros_like(af), af - mask_lower).reshape(90, 360).detach())
+		plt.pause(.1)
 
 		return u_loss + l_loss
 
@@ -92,8 +104,8 @@ cos_angs = vectors @ mainlobe
 angs = np.degrees(np.arccos(cos_angs))
 mask_mainlobe = angs < 5
 
-mask_upper = 90*mask_mainlobe + 10
-mask_lower = 100*mask_mainlobe
+mask_upper = 25*mask_mainlobe
+mask_lower = 25*mask_mainlobe
 
 grid = torch.tensor(grid)
 mask_upper = torch.tensor(mask_upper)
@@ -106,6 +118,62 @@ def picture_raw(phi, theta, af):
 	plt.ylabel("Inclination")
 	plt.xlabel("Azimuth")
 	plt.show()
+
+def picture_w_sidelobes(u, v, af, show=True):
+	lobe_bitmap = scipy.ndimage.laplace(np.abs(af).reshape(90, 360))<0
+	features, count = scipy.ndimage.label(lobe_bitmap)
+
+	pk_sort = []
+	pk_gain = []
+	pk_ind = []
+
+	for i in range(1, count):
+		mask = (features.flatten() == i)
+		peak = np.max(np.abs(af)*mask)
+		ind = np.argmax(np.abs(af)*mask)
+		pk_gain.append(peak)
+		pk_ind.append(ind)
+
+	ind = np.argsort(pk_gain)
+	pk_gain = np.array(pk_gain)[ind]
+	pk_ind = np.array(pk_ind)[ind]
+
+	cycler = plt.rcParams['axes.prop_cycle'].by_key()['color']
+	color_a = cycler.pop(0)
+	color_b = cycler.pop(0)
+
+	x = np.sin(v)*np.sin(u)
+	y = np.sin(v)*np.cos(u)
+	plt.pcolormesh(x, y, np.abs(af).reshape(90, 360), shading="gouraud")
+	cb = plt.colorbar()
+	plt.contour(x, y, np.abs(af).reshape(90, 360)>0.5*np.max(af, 0), levels=[0.5], colors='red', linewidths=2)
+	#plt.contour(x, y, lobe_bitmap, levels=[0.5], colors='blue', linewidths=2)
+	plt.gca().set_aspect("equal")
+	plt.title("$|AF|$")
+	plt.ylabel("$\sin(\Theta)\cos(\phi)$")
+	plt.xlabel("$\sin(\Theta)\sin(\phi)$")
+
+	for i, (gain, ind) in enumerate(zip(pk_gain[-5:], pk_ind[-5:])):
+		x_ = x.flatten()[ind]
+		y_ = y.flatten()[ind]
+
+		c = color_a if i == 4 else color_b
+
+		plt.scatter(x_, y_, c=c)
+		cb.ax.axhline(gain, c=c, lw=3)
+
+		plt.annotate(f"{gain:.1f}",
+			xy=(x_, y_),
+			xycoords='data',
+			color=c,
+			xytext=(0, -15),
+			textcoords='offset points',
+			weight="bold",
+			ha="center",
+		)
+
+	if show:
+		plt.show()
 
 def picture(phi, theta, af):
 	vec = np.array([
@@ -123,11 +191,30 @@ def picture(phi, theta, af):
 	plt.xlabel("$\sin(\Theta)\sin(\phi)$")
 	plt.show()
 
-af = model.array_factor(*grid.T)
-#picture_raw(a, b, af.detach().numpy())
-picture(*grid.T.numpy(), af.detach().numpy())
+def af_stats(grid, af):
+	af = np.abs(af)
+	gain = np.max(af, 0)
 
-picture(*grid.T.numpy(), mask_mainlobe)
+	mainlobe_ind = af>=0.5*gain
+	mainlobe_grid = grid[mainlobe_ind]
+	phi, theta = mainlobe_grid.T
+
+	# width cannot be adequately computed
+	h = np.abs(np.max(theta) - np.min(theta))
+
+	print("Mainlobe h g", np.degrees(h), gain)
+
+af = model.array_factor(*grid.T)
+
+picture_w_sidelobes(u, v, af.detach().numpy())
+#picture_w_sidelobes(u, v, mask_mainlobe)
+
+#picture_raw(a, b, af.detach().numpy())
+#af_stats(grid.numpy(), af.detach().numpy())
+#picture(*grid.T.numpy(), af.detach().numpy())
+
+#af_stats(grid.numpy(), mask_upper.detach().numpy())
+#picture(*grid.T.numpy(), mask_mainlobe)
 #picture_raw(a, b, mask_mainlobe)
 
 for i in range(100):
@@ -143,4 +230,16 @@ for i in range(100):
 
 	print(loss)
 
+picture_w_sidelobes(u, v, af.detach().numpy())
+
+plt.subplot(1, 2, 1)
+picture_w_sidelobes(u, v, mask_mainlobe, show=False)
+plt.subplot(1, 2, 2)
+picture_w_sidelobes(u, v, af.detach().numpy(), show=False)
+plt.show()
+
+"""
+af_stats(grid.numpy(), af.detach().numpy())
 picture(*grid.T.numpy(), af.detach().numpy())
+picture(*grid.T.numpy(), af.detach().numpy())
+"""
