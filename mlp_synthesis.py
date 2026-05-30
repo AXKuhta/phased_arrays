@@ -102,7 +102,7 @@ vectors = spherical_to_vector(*grid.T)
 mainlobe = spherical_to_vector(np.radians(10), np.radians(10))
 cos_angs = vectors @ mainlobe
 angs = np.degrees(np.arccos(cos_angs))
-mask_mainlobe = angs < 5
+mask_mainlobe = angs < 10
 
 mask_upper = 25*mask_mainlobe
 mask_lower = 25*mask_mainlobe
@@ -144,7 +144,7 @@ def picture_w_sidelobes(u, v, af, show=True):
 
 	x = np.sin(v)*np.sin(u)
 	y = np.sin(v)*np.cos(u)
-	plt.pcolormesh(x, y, np.abs(af).reshape(90, 360), shading="gouraud")
+	plt.pcolormesh(x, y, np.log10(np.abs(af).reshape(90, 360)), shading="gouraud")
 	cb = plt.colorbar()
 	plt.contour(x, y, np.abs(af).reshape(90, 360)>0.5*np.max(af, 0), levels=[0.5], colors='red', linewidths=2)
 	#plt.contour(x, y, lobe_bitmap, levels=[0.5], colors='blue', linewidths=2)
@@ -217,6 +217,11 @@ picture_w_sidelobes(u, v, af.detach().numpy())
 #picture(*grid.T.numpy(), mask_mainlobe)
 #picture_raw(a, b, mask_mainlobe)
 
+af_original = torch.clone(af)
+
+w2 = model.w.clone().detach().numpy()
+model.w = torch.ones([100], dtype=torch.complex64, requires_grad=True)
+
 for i in range(100):
 	af = model.array_factor(*grid.T)
 
@@ -230,11 +235,36 @@ for i in range(100):
 
 	print(loss)
 
+w3 = model.w.clone().detach().numpy()
+
 picture_w_sidelobes(u, v, af.detach().numpy())
 
 plt.subplot(1, 2, 1)
 picture_w_sidelobes(u, v, mask_mainlobe, show=False)
 plt.subplot(1, 2, 2)
+picture_w_sidelobes(u, v, af.detach().numpy(), show=False)
+plt.show()
+
+plt.subplot(2, 3, 1)
+plt.imshow(np.abs(w2).reshape(10, 10))
+plt.title("original |w|")
+
+plt.subplot(2, 3, 2)
+plt.imshow(np.angle(w2).reshape(10, 10))
+plt.title("original arg(w)")
+
+plt.subplot(2, 3, 3)
+picture_w_sidelobes(u, v, af_original.detach().numpy(), show=False)
+
+plt.subplot(2, 3, 4)
+plt.imshow(np.abs(w3).reshape(10, 10))
+plt.title("trained |w|")
+
+plt.subplot(2, 3, 5)
+plt.imshow(np.angle(w3).reshape(10, 10))
+plt.title("trained arg(w)")
+
+plt.subplot(2, 3, 6)
 picture_w_sidelobes(u, v, af.detach().numpy(), show=False)
 plt.show()
 
