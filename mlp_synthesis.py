@@ -1,3 +1,4 @@
+from torch.optim.lr_scheduler import LinearLR
 from time import perf_counter
 
 import matplotlib.pyplot as plt
@@ -236,12 +237,14 @@ af_original = torch.clone(af)
 w2 = model.w.clone().detach().numpy()
 model.w = torch.ones([100], dtype=torch.complex64, requires_grad=True)
 
+steps = 1000
 optim = torch.optim.SGD([model.w])
+sched = LinearLR(optim, 1.0, 0.0, steps)
 #optim = torch.optim.Adam([model.w])
 
 model.array_factor_fast_init(*grid.T)
 
-for i in range(100):
+for i in range(steps):
 	start = perf_counter()
 
 	af = model.array_factor_fast()
@@ -255,6 +258,7 @@ for i in range(100):
 	optim.zero_grad()
 	loss.backward()
 	optim.step()
+	sched.step()
 
 	elapsed = perf_counter() - start
 	print(f"bwd {elapsed*1000:.1f}ms")
