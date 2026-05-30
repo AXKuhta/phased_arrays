@@ -95,8 +95,10 @@ class PlanarArray(torch.nn.Module):
 		#u_loss = af - mask_upper
 		#u_loss = torch.dot(u_loss, u_loss)/90/360
 		#l_loss = 0
-		u_loss = torch.linalg.norm(torch.maximum(z, af - mask_upper))
-		l_loss = torch.linalg.norm(torch.minimum(z, af - mask_lower))
+		ovr = torch.maximum(z, af - mask_upper)
+		und = torch.minimum(z, af - mask_lower)
+		u_loss = torch.dot(ovr, ovr)/90/360
+		l_loss = torch.dot(und, und)/90/360
 
 		return u_loss + l_loss
 
@@ -120,7 +122,7 @@ angs = np.degrees(np.arccos(cos_angs))
 mask_mainlobe = angs < 10
 
 mask_upper = 25*mask_mainlobe
-mask_lower = 25*mask_mainlobe
+mask_lower = 24*mask_mainlobe+1
 
 grid = torch.tensor(grid)
 mask_upper = torch.tensor(mask_upper)
@@ -237,10 +239,10 @@ af_original = torch.clone(af)
 w2 = model.w.clone().detach().numpy()
 model.w = torch.ones([100], dtype=torch.complex64, requires_grad=True)
 
-steps = 1000
-optim = torch.optim.SGD([model.w])
-sched = LinearLR(optim, 1.0, 0.0, steps)
+steps = 500
+optim = torch.optim.SGD([model.w], momentum=0.9)
 #optim = torch.optim.Adam([model.w])
+sched = LinearLR(optim, 1.0, 0.0, steps)
 
 model.array_factor_fast_init(*grid.T)
 
