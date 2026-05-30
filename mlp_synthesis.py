@@ -1,3 +1,5 @@
+from time import perf_counter
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -23,7 +25,7 @@ class PlanarArray(torch.nn.Module):
 	n = n.flatten()
 	z = np.zeros_like(m)
 
-	pts = np.dstack([m, n, z])[0]
+	pts = torch.tensor(np.dstack([m, n, z])[0] + 0.0)
 
 	# Pre-steering
 	t = 10/57.2
@@ -42,7 +44,7 @@ class PlanarArray(torch.nn.Module):
 	# Array weights
 	# Should be all 1s for beam up
 	# Warning: ensure the datatype is complex
-	w = torch.exp(torch.tensor(pts) @ v * 1j * kd) * taper
+	w = torch.exp(pts @ v * 1j * kd) * taper
 	w.requires_grad = True
 
 	#
@@ -53,14 +55,11 @@ class PlanarArray(torch.nn.Module):
 		pts = self.pts
 		kd = self.kd
 
-		vec = np.array([
+		vec = torch.stack([
 			np.sin(theta)*np.cos(phi),
 			np.sin(theta)*np.sin(phi),
 			np.cos(theta)
 		])
-
-		vec = torch.tensor(vec + .0)
-		pts = torch.tensor(pts + .0)
 
 		# Lag distance in a direction (virtual, to a far field point)
 		lag = pts @ vec
@@ -69,19 +68,34 @@ class PlanarArray(torch.nn.Module):
 
 		return torch.sum(radiators, 0)
 
+	def array_factor_fast_init(self, phi, theta):
+		pts = self.pts
+		kd = self.kd
+
+		vec = torch.stack([
+			np.sin(theta)*np.cos(phi),
+			np.sin(theta)*np.sin(phi),
+			np.cos(theta)
+		])
+
+		# Lag distance in a direction (virtual, to a far field point)
+		lag = pts @ vec
+
+		self.delta_phi = torch.exp(1j * lag * kd).to(dtype=torch.complex64)
+
+	def array_factor_fast(self):
+		radiators = self.w[:, None] * self.delta_phi
+
+		return torch.sum(radiators, 0)
+
 	def loss(self, af, mask_upper, mask_lower):
 		af = torch.abs(af)
+		z = torch.tensor(0)
 		#u_loss = af - mask_upper
 		#u_loss = torch.dot(u_loss, u_loss)/90/360
 		#l_loss = 0
-		u_loss = torch.linalg.norm(torch.maximum(torch.zeros_like(af), af - mask_upper))
-		l_loss = torch.linalg.norm(torch.minimum(torch.zeros_like(af), af - mask_lower))
-
-		plt.clf()
-		#plt.imshow(torch.maximum(torch.zeros_like(af), af - mask_upper).reshape(90, 360).detach())
-		#plt.pause(.01)
-		plt.imshow(torch.minimum(torch.zeros_like(af), af - mask_lower).reshape(90, 360).detach())
-		plt.pause(.1)
+		u_loss = torch.linalg.norm(torch.maximum(z, af - mask_upper))
+		l_loss = torch.linalg.norm(torch.minimum(z, af - mask_lower))
 
 		return u_loss + l_loss
 
@@ -222,16 +236,28 @@ af_original = torch.clone(af)
 w2 = model.w.clone().detach().numpy()
 model.w = torch.ones([100], dtype=torch.complex64, requires_grad=True)
 
-for i in range(100):
-	af = model.array_factor(*grid.T)
+optim = torch.optim.SGD([model.w])
+#optim = torch.optim.Adam([model.w])
 
-	optim = torch.optim.SGD([model.w])
-	#optim = torch.optim.Adam([model.w])
+model.array_factor_fast_init(*grid.T)
+
+for i in range(100):
+	start = perf_counter()
+
+	af = model.array_factor_fast()
+
+	elapsed = perf_counter() - start
+	print(f"fwd {elapsed*1000:.1f}ms")
+
+	start = perf_counter()
 	loss = model.loss(af, mask_upper, mask_lower)
 
 	optim.zero_grad()
 	loss.backward()
 	optim.step()
+
+	elapsed = perf_counter() - start
+	print(f"bwd {elapsed*1000:.1f}ms")
 
 	print(loss)
 
