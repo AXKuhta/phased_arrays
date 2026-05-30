@@ -29,8 +29,8 @@ class PlanarArray(torch.nn.Module):
 	pts = torch.tensor(np.dstack([m, n, z])[0] + 0.0)
 
 	# Pre-steering
-	t = 10/57.2
-	p = 10/57.2
+	t = 45/57.2
+	p = 45/57.2
 	v = -np.array([
 		np.sin(t)*np.cos(p),
 		np.sin(t)*np.sin(p),
@@ -47,6 +47,27 @@ class PlanarArray(torch.nn.Module):
 	# Warning: ensure the datatype is complex
 	w = torch.exp(pts @ v * 1j * kd) * taper
 	w.requires_grad = True
+
+	from torch.nn import Linear, ReLU, Tanh
+
+	inputs = torch.tensor([0.0, 0.0])
+
+	act = ReLU()
+	fin = Tanh()
+	w1 = Linear(2, 4096)
+	w2 = Linear(4096, 2048)
+	w3 = Linear(2048, 2048)
+	w4 = Linear(2048, 1024)
+
+	re = Linear(1024, 100)
+	im = Linear(1024, 100)
+
+	torch.nn.init.xavier_uniform_(w1.weight, gain=torch.nn.init.calculate_gain("relu"))
+	torch.nn.init.xavier_uniform_(w2.weight, gain=torch.nn.init.calculate_gain("relu"))
+	torch.nn.init.xavier_uniform_(w3.weight, gain=torch.nn.init.calculate_gain("relu"))
+	torch.nn.init.xavier_uniform_(w4.weight, gain=torch.nn.init.calculate_gain("relu"))
+	torch.nn.init.xavier_uniform_(re.weight, gain=torch.nn.init.calculate_gain("relu"))
+	torch.nn.init.xavier_uniform_(im.weight, gain=torch.nn.init.calculate_gain("relu"))
 
 	#
 	# phi           azimuth
@@ -89,6 +110,24 @@ class PlanarArray(torch.nn.Module):
 
 		return torch.sum(radiators, 0)
 
+	def array_factor_fast_nn(self):
+		x = self.inputs
+		x = self.act(self.w1(x))
+		x = self.act(self.w2(x))
+		x = self.act(self.w3(x))
+		x = self.act(self.w4(x))
+
+		w = torch.complex(
+			self.fin(self.re(x)),
+			self.fin(self.im(x))
+		)
+
+		self.w = w
+
+		radiators = w[:, None] * self.delta_phi
+
+		return torch.sum(radiators, 0)
+
 	def loss(self, af, mask_upper, mask_lower):
 		af = torch.abs(af)
 		z = torch.tensor(0)
@@ -104,6 +143,9 @@ class PlanarArray(torch.nn.Module):
 
 model = PlanarArray()
 
+model.inputs[0] = np.radians(45)
+model.inputs[1] = np.radians(45)
+
 a = np.linspace(-180, +180, 360)
 b = np.linspace(0, +90, 90)
 u, v = np.meshgrid(a/57.2, b/57.2)
@@ -116,7 +158,7 @@ def spherical_to_vector(azi, inc):
 	return np.stack([x, y, z]).T
 
 vectors = spherical_to_vector(*grid.T)
-mainlobe = spherical_to_vector(np.radians(10), np.radians(10))
+mainlobe = spherical_to_vector(np.radians(45), np.radians(45))
 cos_angs = vectors @ mainlobe
 angs = np.degrees(np.arccos(cos_angs))
 mask_mainlobe = angs < 10
@@ -259,16 +301,34 @@ w2 = model.w.clone().detach().numpy()
 model.w = torch.ones([100], dtype=torch.complex64, requires_grad=True)
 
 steps = 1000
-optim = torch.optim.SGD([model.w], momentum=0.9)
+optim = torch.optim.SGD([
+	model.w1.weight,
+	model.w1.bias,
+	model.w2.weight,
+	model.w2.bias,
+	model.w3.weight,
+	model.w3.bias,
+	model.w4.weight,
+	model.w4.bias,
+	model.re.weight,
+	model.re.bias,
+	model.im.weight,
+	model.im.bias
+], momentum=0.9, lr=1e-4) # w. nn much reduced lr required
+
+#optim = torch.optim.SGD([model.w], momentum=0.9)
 #optim = torch.optim.Adam([model.w])
 sched = LinearLR(optim, 1.0, 0.0, steps)
+
+loss_log = []
+time_log = [perf_counter()]
 
 model.array_factor_fast_init(*grid.T)
 
 for i in range(steps):
 	start = perf_counter()
 
-	af = model.array_factor_fast()
+	af = model.array_factor_fast_nn()
 
 	elapsed = perf_counter() - start
 	print(f"fwd {elapsed*1000:.1f}ms")
@@ -285,6 +345,9 @@ for i in range(steps):
 	print(f"bwd {elapsed*1000:.1f}ms")
 
 	print(loss)
+
+	loss_log.append(loss)
+	time_log.append(perf_counter())
 
 w3 = model.w.clone().detach().numpy()
 
@@ -317,6 +380,9 @@ plt.title("trained arg(w)")
 
 plt.subplot(2, 3, 6)
 picture_w_sidelobes(u, v, af.detach().numpy(), show=False)
+
+elapsed = max(time_log) - min(time_log)
+plt.suptitle(f"Time elapsed {elapsed*1000:.1f}ms")
 plt.show()
 
 """
