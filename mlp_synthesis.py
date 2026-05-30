@@ -155,18 +155,35 @@ def picture_w_sidelobes(u, v, af, show=True):
 	pk_gain = np.array(pk_gain)[ind]
 	pk_ind = np.array(pk_ind)[ind]
 
+	x = np.sin(v)*np.sin(u)
+	y = np.sin(v)*np.cos(u)
+
 	max = np.max(np.abs(af))
+
+	half = np.abs(af).reshape(90, 360)>max/np.sqrt(2)
+	xset = x[half]
+	yset = y[half]
+
+	xmin = np.degrees(np.asin(np.min(xset)))
+	xmax = np.degrees(np.asin(np.max(xset)))
+	ymin = np.degrees(np.asin(np.min(yset)))
+	ymax = np.degrees(np.asin(np.max(yset)))
+
+	# Non precise
+	xhpbw = np.abs(xmin - xmax)
+	yhpbw = np.abs(ymin - ymax)
+
+	from matplotlib.lines import Line2D
 
 	cycler = plt.rcParams['axes.prop_cycle'].by_key()['color']
 	color_a = cycler.pop(0)
 	color_b = cycler.pop(0)
 
-	x = np.sin(v)*np.sin(u)
-	y = np.sin(v)*np.cos(u)
-	plt.pcolormesh(x, y, 10*np.log10(np.abs(af).reshape(90, 360)/max), shading="gouraud")
-	cb = plt.colorbar(label="dB")
-	plt.contour(x, y, np.abs(af).reshape(90, 360)>0.5*np.max(af, 0), levels=[0.5], colors='red', linewidths=2)
+	plt.pcolormesh(x, y, 20*np.log10(np.abs(af).reshape(90, 360)/max), shading="gouraud")
+	cb = plt.colorbar(label="20log10(|AF|)")
+	plt.contour(x, y, np.abs(af).reshape(90, 360)>max/np.sqrt(2), levels=[0.5], colors='red', linewidths=2)
 	#plt.contour(x, y, lobe_bitmap, levels=[0.5], colors='blue', linewidths=2)
+	plt.gca().legend([Line2D([0], [0], color="red", lw=1)], ["$\Theta_{HPBW}=" + f"{yhpbw:.1f}°" + "$"])
 	plt.gca().set_aspect("equal")
 	plt.title("$|AF|$")
 	plt.ylabel("$\sin(\Theta)\cos(\phi)$")
@@ -179,7 +196,7 @@ def picture_w_sidelobes(u, v, af, show=True):
 		c = color_a if i == 4 else color_b
 
 		plt.scatter(x_, y_, c=c)
-		cb.ax.axhline(10*np.log10(gain/max), c=c, lw=3)
+		cb.ax.axhline(20*np.log10(gain/max), c=c, lw=3)
 
 		plt.annotate(f"{gain:.1f}",
 			xy=(x_, y_),
@@ -241,7 +258,7 @@ af_original = torch.clone(af)
 w2 = model.w.clone().detach().numpy()
 model.w = torch.ones([100], dtype=torch.complex64, requires_grad=True)
 
-steps = 500
+steps = 1000
 optim = torch.optim.SGD([model.w], momentum=0.9)
 #optim = torch.optim.Adam([model.w])
 sched = LinearLR(optim, 1.0, 0.0, steps)
