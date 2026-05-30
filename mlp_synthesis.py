@@ -155,14 +155,16 @@ def picture_w_sidelobes(u, v, af, show=True):
 	pk_gain = np.array(pk_gain)[ind]
 	pk_ind = np.array(pk_ind)[ind]
 
+	max = np.max(np.abs(af))
+
 	cycler = plt.rcParams['axes.prop_cycle'].by_key()['color']
 	color_a = cycler.pop(0)
 	color_b = cycler.pop(0)
 
 	x = np.sin(v)*np.sin(u)
 	y = np.sin(v)*np.cos(u)
-	plt.pcolormesh(x, y, np.log10(np.abs(af).reshape(90, 360)), shading="gouraud")
-	cb = plt.colorbar()
+	plt.pcolormesh(x, y, 10*np.log10(np.abs(af).reshape(90, 360)/max), shading="gouraud")
+	cb = plt.colorbar(label="dB")
 	plt.contour(x, y, np.abs(af).reshape(90, 360)>0.5*np.max(af, 0), levels=[0.5], colors='red', linewidths=2)
 	#plt.contour(x, y, lobe_bitmap, levels=[0.5], colors='blue', linewidths=2)
 	plt.gca().set_aspect("equal")
@@ -177,7 +179,7 @@ def picture_w_sidelobes(u, v, af, show=True):
 		c = color_a if i == 4 else color_b
 
 		plt.scatter(x_, y_, c=c)
-		cb.ax.axhline(gain, c=c, lw=3)
+		cb.ax.axhline(10*np.log10(gain/max), c=c, lw=3)
 
 		plt.annotate(f"{gain:.1f}",
 			xy=(x_, y_),
