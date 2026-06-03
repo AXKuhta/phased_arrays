@@ -40,7 +40,7 @@ class PlanarArray(torch.nn.Module):
 	# Tapering (optional)
 	taper = torch.tensor(np.hamming(10))
 	taper = torch.outer(taper, taper).flatten()
-	#taper = 1
+	taper = 1
 
 	# Array weights
 	# Should be all 1s for beam up
@@ -172,11 +172,10 @@ mask_lower = torch.tensor(mask_lower)
 
 def picture_raw(phi, theta, af):
 	plt.pcolormesh(a, b, np.abs(af).reshape(90, 360))
-	plt.contour(a, b, np.abs(af).reshape(90, 360)>0.5*np.max(af, 0), levels=[0.5], colors='red', linewidths=2)
-	plt.gca().set_aspect("equal")
+	#plt.contour(a, b, np.abs(af).reshape(90, 360)>0.5*np.max(af, 0), levels=[0.5], colors='red', linewidths=2)
+	#plt.gca().set_aspect("equal")
 	plt.ylabel("Inclination")
 	plt.xlabel("Azimuth")
-	plt.show()
 
 def picture_w_sidelobes(u, v, af, show=True):
 	lobe_bitmap = scipy.ndimage.laplace(np.abs(af).reshape(90, 360))<0
@@ -267,7 +266,6 @@ def picture(phi, theta, af):
 	plt.colorbar()
 	plt.ylabel("$\sin(\Theta)\cos(\phi)$")
 	plt.xlabel("$\sin(\Theta)\sin(\phi)$")
-	plt.show()
 
 def af_stats(grid, af):
 	af = np.abs(af)
@@ -283,6 +281,16 @@ def af_stats(grid, af):
 	print("Mainlobe h g", np.degrees(h), gain)
 
 af = model.array_factor(*grid.T)
+
+"""
+plt.subplot(1, 2, 1)
+plt.title("spherical")
+picture_raw(a, b, af.detach().numpy())
+plt.subplot(1, 2, 2)
+plt.title("u-v coordinates")
+picture(*grid.T.numpy(), af.detach().numpy())
+plt.show()
+"""
 
 picture_w_sidelobes(u, v, af.detach().numpy())
 #picture_w_sidelobes(u, v, mask_mainlobe)
@@ -316,7 +324,7 @@ optim = torch.optim.SGD([
 	model.im.bias
 ], momentum=0.9, lr=1e-4) # w. nn much reduced lr required
 
-#optim = torch.optim.SGD([model.w], momentum=0.9)
+optim = torch.optim.SGD([model.w], momentum=0.9)
 #optim = torch.optim.Adam([model.w])
 sched = LinearLR(optim, 1.0, 0.0, steps)
 
@@ -328,7 +336,7 @@ model.array_factor_fast_init(*grid.T)
 for i in range(steps):
 	start = perf_counter()
 
-	af = model.array_factor_fast_nn()
+	af = model.array_factor_fast()
 
 	elapsed = perf_counter() - start
 	print(f"fwd {elapsed*1000:.1f}ms")
