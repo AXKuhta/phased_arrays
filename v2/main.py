@@ -1,3 +1,4 @@
+from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import LinearLR
 from time import perf_counter
 import json
@@ -11,6 +12,8 @@ import scipy
 from torch.nn import Sequential, Linear, ReLU, Tanh
 from misc import spherical2cartesian
 from ds import train_dataloader
+
+writer = SummaryWriter()
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -52,10 +55,25 @@ sched = LinearLR(optim, 1.0, 0.0, len(train_dataloader))
 taper = taper.to(device)
 pts = pts.to(device)
 
+ts = []
+
+def it_per_second():
+	now = perf_counter()
+
+	for i, x in enumerate(reversed(ts)):
+		if x < now - 1:
+			return i + 1
+
+	return 0
+
 for i, directions in enumerate(train_dataloader):
 	start = perf_counter()
 
+	#
+	# Device download/upload
+	#
 	directions = directions.to(device)
+
 	v = spherical2cartesian(directions)
 
 	w = torch.exp(pts @ v * 1j * kd).T * taper
@@ -73,9 +91,17 @@ for i, directions in enumerate(train_dataloader):
 	optim.step()
 	sched.step()
 
+	ts.append(perf_counter())
 	elapsed = perf_counter() - start
 
-	print(f"{elapsed*1000:.1f}ms {i}/{len(train_dataloader)}\t{loss:.1f}")
+	itps = it_per_second()
+
+	#print(f"{itps}it/sec {i}/{len(train_dataloader)}\t{loss:.1f}")
+	if i % 50 == 0:
+		writer.add_scalar("Loss", loss, i)
+		writer.add_scalar("Perf/it per sec", itps, i)
+		writer.add_scalar("Perf/ms per step", elapsed*1000, i)
+		writer.add_scalar("Perf/GPU%", torch.cuda.utilization(), i)
 
 	#af = torch.fft.ifft2(w, [500, 500])*500*500
 	#af = torch.fft.fftshift(af, [-2, -1])
