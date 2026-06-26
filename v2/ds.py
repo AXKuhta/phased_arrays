@@ -19,4 +19,4 @@ class DirectionSamples(Dataset):
 		return tp
 
 dataset = DirectionSamples()
-train_dataloader = DataLoader(dataset, batch_size=64)
+train_dataloader = DataLoader(dataset, batch_size=64, pin_memory=True, num_workers=1)

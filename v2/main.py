@@ -60,7 +60,7 @@ ts = []
 def it_per_second():
 	now = perf_counter()
 
-	for i, x in enumerate(reversed(ts)):
+	for i, x in enumerate(ts):
 		if x < now - 1:
 			return i + 1
 
@@ -69,13 +69,8 @@ def it_per_second():
 for i, directions in enumerate(train_dataloader):
 	start = perf_counter()
 
-	#
-	# Device download/upload
-	#
-	directions = directions.to(device)
-
+	directions = directions.to(device, non_blocking=True)
 	v = spherical2cartesian(directions)
-
 	w = torch.exp(pts @ v * 1j * kd).T * taper
 
 	preds = model(directions)
@@ -91,14 +86,13 @@ for i, directions in enumerate(train_dataloader):
 	optim.step()
 	sched.step()
 
-	ts.append(perf_counter())
+	ts.insert(0, perf_counter())
 	elapsed = perf_counter() - start
-
 	itps = it_per_second()
 
 	#print(f"{itps}it/sec {i}/{len(train_dataloader)}\t{loss:.1f}")
 	if i % 50 == 0:
-		writer.add_scalar("Loss", loss, i)
+		writer.add_scalar("Loss", loss.detach(), i)
 		writer.add_scalar("Perf/it per sec", itps, i)
 		writer.add_scalar("Perf/ms per step", elapsed*1000, i)
 		writer.add_scalar("Perf/GPU%", torch.cuda.utilization(), i)
