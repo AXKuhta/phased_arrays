@@ -50,7 +50,7 @@ pts = torch.tensor(np.float32(np.dstack([m, n, z])[0]))
 taper = torch.tensor(np.hamming(10))
 taper = torch.outer(taper, taper).flatten()
 
-optim = torch.optim.AdamW(model.parameters())
+optim = torch.optim.AdamW(model.parameters(), lr=1e-3)
 sched = LinearLR(optim, 1.0, 0.0, len(train_dataloader))
 
 # Device upload
