@@ -1,4 +1,3 @@
-from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import LinearLR
 from time import perf_counter
 import json
@@ -7,13 +6,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-import scipy
-
 from torch.nn import Sequential, Linear, ReLU, Tanh
 from misc import spherical2cartesian
 from ds import train_dataloader
 
-writer = SummaryWriter()
+note = input("Associated Post-It Note: ")
+
+from torch.utils.tensorboard import SummaryWriter
+import safetensors.torch
+
+writer = SummaryWriter(comment=note)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -99,3 +101,5 @@ for i, directions in enumerate(train_dataloader):
 
 	#af = torch.fft.ifft2(w, [500, 500])*500*500
 	#af = torch.fft.fftshift(af, [-2, -1])
+
+safetensors.torch.save_model(model, writer.get_logdir() + "/final.safetensors")
