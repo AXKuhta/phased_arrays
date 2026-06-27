@@ -47,3 +47,9 @@ def select_(stdscr, options):
 
 def select(options = ["Option 1", "Option 2", "Option 3"]):
 	return curses.wrapper(select_, options)
+
+def optim_lr(optimizer):
+	if optimizer.param_groups:
+		return optimizer.param_groups[0]['lr']
+
+	return None

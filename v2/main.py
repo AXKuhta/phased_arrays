@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 from torch.nn import Sequential, Linear, ReLU, Tanh
-from misc import spherical2cartesian
+from misc import spherical2cartesian, optim_lr
 from ds import train_dataloader
 
 note = input("Associated Post-It Note: ")
@@ -51,7 +51,8 @@ taper = torch.tensor(np.hamming(10))
 taper = torch.outer(taper, taper).flatten()
 
 optim = torch.optim.AdamW(model.parameters(), lr=1e-3)
-sched = LinearLR(optim, 1.0, 0.0, len(train_dataloader))
+sched = LinearLR(optim, 1.0, 0.0, len(train_dataloader) - 1000)
+warmu = LinearLR(optim, 1/1000, 1.0, 1000)
 
 # Device upload
 taper = taper.to(device)
@@ -86,7 +87,7 @@ for i, directions in enumerate(train_dataloader):
 	optim.zero_grad()
 	loss.backward()
 	optim.step()
-	sched.step()
+	sched.step() # if i >= 1000 else warmu.step()
 
 	ts.insert(0, perf_counter())
 	elapsed = perf_counter() - start
@@ -95,6 +96,7 @@ for i, directions in enumerate(train_dataloader):
 	#print(f"{itps}it/sec {i}/{len(train_dataloader)}\t{loss:.1f}")
 	if i % 50 == 0:
 		writer.add_scalar("Loss", loss.detach(), i)
+		writer.add_scalar("Effective LR", optim_lr(optim), i)
 		writer.add_scalar("Perf/it per sec", itps, i)
 		writer.add_scalar("Perf/ms per step", elapsed*1000, i)
 		writer.add_scalar("Perf/GPU%", torch.cuda.utilization(), i)
