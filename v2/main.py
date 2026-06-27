@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from torch.nn import Sequential, Linear, ReLU, Tanh
+from torch.nn import Sequential, Linear, SiLU, Tanh
 from misc import spherical2cartesian, optim_lr
 from ds import train_dataloader
 
@@ -20,14 +20,14 @@ writer = SummaryWriter(comment=note)
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 model = Sequential(
-	Linear(3, 1024), ReLU(),
-	Linear(1024, 1024), ReLU(),
-	Linear(1024, 1024), ReLU(),
-	Linear(1024, 1024), ReLU(),
-	Linear(1024, 1024), ReLU(),
-	Linear(1024, 1024), ReLU(),
-	Linear(1024, 1024), ReLU(),
-	Linear(1024, 1024), ReLU(),
+	Linear(3, 1024), SiLU(),
+	Linear(1024, 1024), SiLU(),
+	Linear(1024, 1024), SiLU(),
+	Linear(1024, 1024), SiLU(),
+	Linear(1024, 1024), SiLU(),
+	Linear(1024, 1024), SiLU(),
+	Linear(1024, 1024), SiLU(),
+	Linear(1024, 1024), SiLU(),
 	Linear(1024, 200), Tanh()
 ).to(dtype=torch.float32).to(device)
 
@@ -51,8 +51,8 @@ taper = torch.tensor(np.hamming(10))
 taper = torch.outer(taper, taper).flatten()
 
 optim = torch.optim.AdamW(model.parameters(), lr=1e-3)
-sched = LinearLR(optim, 1.0, 0.0, len(train_dataloader) - 1000)
-warmu = LinearLR(optim, 1/1000, 1.0, 1000)
+sched = LinearLR(optim, 1.0, 0.0, len(train_dataloader))
+#warmu = LinearLR(optim, 1/1000, 1.0, 1000)
 
 # Device upload
 taper = taper.to(device)

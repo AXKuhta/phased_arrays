@@ -3,7 +3,7 @@ from glob import glob
 import numpy as np
 import torch
 
-from torch.nn import Sequential, Linear, ReLU, Tanh
+from torch.nn import Sequential, Linear, SiLU, Tanh
 from misc import spherical2cartesian, select
 
 import safetensors.torch
@@ -11,14 +11,14 @@ import safetensors.torch
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 model = Sequential(
-	Linear(3, 1024), ReLU(),
-	Linear(1024, 1024), ReLU(),
-	Linear(1024, 1024), ReLU(),
-	Linear(1024, 1024), ReLU(),
-	Linear(1024, 1024), ReLU(),
-	Linear(1024, 1024), ReLU(),
-	Linear(1024, 1024), ReLU(),
-	Linear(1024, 1024), ReLU(),
+	Linear(3, 1024), SiLU(),
+	Linear(1024, 1024), SiLU(),
+	Linear(1024, 1024), SiLU(),
+	Linear(1024, 1024), SiLU(),
+	Linear(1024, 1024), SiLU(),
+	Linear(1024, 1024), SiLU(),
+	Linear(1024, 1024), SiLU(),
+	Linear(1024, 1024), SiLU(),
 	Linear(1024, 200), Tanh()
 ).to(dtype=torch.float32)
 
