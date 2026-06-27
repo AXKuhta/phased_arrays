@@ -20,7 +20,7 @@ writer = SummaryWriter(comment=note)
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 model = Sequential(
-	Linear(2, 1024), ReLU(),
+	Linear(3, 1024), ReLU(),
 	Linear(1024, 1024), ReLU(),
 	Linear(1024, 1024), ReLU(),
 	Linear(1024, 1024), ReLU(),
@@ -75,7 +75,7 @@ for i, directions in enumerate(train_dataloader):
 	v = spherical2cartesian(directions)
 	w = torch.exp(pts @ v * 1j * kd).T * taper
 
-	preds = model(directions)
+	preds = model(v.T)
 	re, im = preds.split(100, 1)
 
 	loss_re = w.real - re
