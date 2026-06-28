@@ -19,17 +19,20 @@ writer = SummaryWriter(comment=note)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-model = Sequential(
-	Linear(3, 1024), SiLU(),
-	Linear(1024, 1024), SiLU(),
-	Linear(1024, 1024), SiLU(),
-	Linear(1024, 1024), SiLU(),
-	Linear(1024, 1024), SiLU(),
-	Linear(1024, 1024), SiLU(),
-	Linear(1024, 1024), SiLU(),
-	Linear(1024, 1024), SiLU(),
-	Linear(1024, 200), Tanh()
-).to(dtype=torch.float32).to(device)
+class MLP(Sequential):
+	def __init__(self, dim=1024, layers=2):
+		hidden = []
+
+		for i in range(layers):
+			hidden = hidden + [Linear(dim, dim), SiLU()]
+
+		super(MLP, self).__init__(*[
+			Linear(3, dim), SiLU(),   # input layer
+			*hidden,                  # n hidden layers
+			Linear(dim, 200), Tanh()  # output layer
+		])
+
+model = MLP(1024, 7).to(dtype=torch.float32).to(device)
 
 f = 100*1000*1000
 c = 299792458
