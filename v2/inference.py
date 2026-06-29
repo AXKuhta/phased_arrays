@@ -1,5 +1,7 @@
-import matplotlib.pyplot as plt
 from glob import glob
+import json
+
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
@@ -10,22 +12,31 @@ import safetensors.torch
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-model = Sequential(
-	Linear(3, 1024), SiLU(),
-	Linear(1024, 1024), SiLU(),
-	Linear(1024, 1024), SiLU(),
-	Linear(1024, 1024), SiLU(),
-	Linear(1024, 1024), SiLU(),
-	Linear(1024, 1024), SiLU(),
-	Linear(1024, 1024), SiLU(),
-	Linear(1024, 1024), SiLU(),
-	Linear(1024, 200), Tanh()
-).to(dtype=torch.float32)
+class MLP(Sequential):
+	def __init__(self, dim=1024, layers=2):
+		hidden = []
+
+		for i in range(layers):
+			hidden = hidden + [Linear(dim, dim), SiLU()]
+
+		super(MLP, self).__init__(*[
+			Linear(3, dim), SiLU(),   # input layer
+			*hidden,                  # n hidden layers
+			Linear(dim, 200), Tanh()  # output layer
+		])
 
 checkpoints = list(sorted(glob("runs/*/final.safetensors")))
 checkpoint = select(checkpoints)
 
 print(f"Loading {checkpoint}...")
+
+with open(checkpoint.replace("final.safetensors", "config.json")) as f:
+	config = json.load(f)
+
+model = MLP(
+	dim = config.get("hidden_dim"),
+	layers = config.get("num_layers")
+)
 
 safetensors.torch.load_model(model, checkpoint)
 

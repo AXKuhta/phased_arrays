@@ -32,7 +32,7 @@ class MLP(Sequential):
 			Linear(dim, 200), Tanh()  # output layer
 		])
 
-model = MLP(1024, 7).to(dtype=torch.float32).to(device)
+model = MLP(128, 14).to(dtype=torch.float32).to(device)
 
 f = 100*1000*1000
 c = 299792458
