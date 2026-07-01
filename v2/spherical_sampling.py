@@ -14,9 +14,13 @@ uni = torch.rand(1000, 2)
 uni.T[0] = torch.arccos(uni.T[0])
 uni.T[1] = uni.T[1]*torch.pi*2
 
-plt.figure(figsize=[10, 5])
+plt.style.use("grayscale")
+plt.figure(figsize=[6, 3])
 plt.subplot(1, 2, 1)
 plt.scatter(*spherical2cartesian(tp))
 plt.subplot(1, 2, 2)
 plt.scatter(*spherical2cartesian(uni))
-plt.show()
+plt.tight_layout()
+plt.savefig("writeup/figures/unbalanced.pdf")
+#plt.show()
+
